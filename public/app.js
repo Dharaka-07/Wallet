@@ -1,3 +1,4 @@
+initializeZunoX();
 let currentAddress = null;
 
 // ==========================================
@@ -699,3 +700,362 @@ async function loadHistory() {
 // ==========================================
 
 initializeZunoX();
+
+// ==========================================
+// SEND / RECEIVE BUTTONS
+// ==========================================
+
+const sendBtn =
+    document.getElementById("sendBtn");
+
+const receiveBtn =
+    document.getElementById("receiveBtn");
+
+const sendPanel =
+    document.getElementById("sendPanel");
+
+const receivePanel =
+    document.getElementById("receivePanel");
+
+const confirmSendPanel =
+    document.getElementById("confirmSendPanel");
+
+
+// ==========================================
+// OPEN RECEIVE
+// ==========================================
+
+receiveBtn.addEventListener("click", () => {
+
+    receivePanel.classList.remove("hidden");
+
+    sendPanel.classList.add("hidden");
+
+    confirmSendPanel.classList.add("hidden");
+
+    const receiveAddress =
+        document.getElementById("receiveAddress");
+
+    receiveAddress.textContent =
+        currentAddress || "0x...";
+
+});
+
+
+// ==========================================
+// CLOSE RECEIVE
+// ==========================================
+
+document
+    .getElementById("closeReceiveBtn")
+    .addEventListener("click", () => {
+
+        receivePanel.classList.add("hidden");
+
+    });
+
+
+// ==========================================
+// COPY RECEIVE ADDRESS
+// ==========================================
+
+document
+    .getElementById("copyReceiveBtn")
+    .addEventListener("click", async () => {
+
+        if (!currentAddress) {
+            alert("Wallet address not available");
+            return;
+        }
+
+        await navigator.clipboard.writeText(
+            currentAddress
+        );
+
+        alert("Wallet address copied!");
+    });
+
+
+// ==========================================
+// OPEN SEND
+// ==========================================
+
+sendBtn.addEventListener("click", async () => {
+
+    sendPanel.classList.remove("hidden");
+
+    receivePanel.classList.add("hidden");
+
+    confirmSendPanel.classList.add("hidden");
+
+    document.getElementById(
+        "receiverAddress"
+    ).value = "";
+
+    document.getElementById(
+        "sendAmount"
+    ).value = "";
+
+    // Get latest balance
+    try {
+
+        const response =
+            await fetch("/api/balance");
+
+        const data =
+            await response.json();
+
+        if (response.ok) {
+
+            document.getElementById(
+                "availableBalance"
+            ).textContent =
+                `Available: ${data.balance} ETH`;
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "BALANCE ERROR:",
+            error
+        );
+
+    }
+
+});
+
+
+// ==========================================
+// CLOSE SEND
+// ==========================================
+
+document
+    .getElementById("closeSendBtn")
+    .addEventListener("click", () => {
+
+        sendPanel.classList.add("hidden");
+
+    });
+
+
+// ==========================================
+// CONTINUE SEND
+// ==========================================
+
+document
+    .getElementById("continueSendBtn")
+    .addEventListener("click", () => {
+
+        const receiver =
+            document.getElementById(
+                "receiverAddress"
+            ).value.trim();
+
+        const amount =
+            document.getElementById(
+                "sendAmount"
+            ).value.trim();
+
+
+        if (!receiver) {
+
+            alert(
+                "Enter the receiver address."
+            );
+
+            return;
+        }
+
+
+        if (!receiver.startsWith("0x") ||
+            receiver.length !== 42) {
+
+            alert(
+                "Enter a valid Ethereum address."
+            );
+
+            return;
+        }
+
+
+        if (!amount ||
+            Number(amount) <= 0) {
+
+            alert(
+                "Enter a valid ETH amount."
+            );
+
+            return;
+        }
+
+
+        // Show confirmation
+        document.getElementById(
+            "confirmAmount"
+        ).textContent =
+            `${amount} ETH`;
+
+
+        document.getElementById(
+            "confirmReceiver"
+        ).textContent =
+            receiver;
+
+
+        sendPanel.classList.add("hidden");
+
+        confirmSendPanel.classList.remove(
+            "hidden"
+        );
+
+    });
+
+
+// ==========================================
+// BACK TO SEND
+// ==========================================
+
+document
+    .getElementById("backToSendBtn")
+    .addEventListener("click", () => {
+
+        confirmSendPanel.classList.add(
+            "hidden"
+        );
+
+        sendPanel.classList.remove(
+            "hidden"
+        );
+
+    });
+
+
+// ==========================================
+// CONFIRM & SEND
+// ==========================================
+
+document
+    .getElementById("confirmSendBtn")
+    .addEventListener("click", async () => {
+
+        const receiver =
+            document.getElementById(
+                "receiverAddress"
+            ).value.trim();
+
+        const amount =
+            document.getElementById(
+                "sendAmount"
+            ).value.trim();
+
+
+        try {
+
+            const button =
+                document.getElementById(
+                    "confirmSendBtn"
+                );
+
+            button.disabled = true;
+
+            button.textContent =
+                "Sending...";
+
+
+            const response =
+                await fetch(
+                    "/api/send",
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body: JSON.stringify({
+                            to: receiver,
+                            amount: amount
+                        })
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error ||
+                    "Transaction failed"
+                );
+
+            }
+
+
+            alert(
+                "Transaction sent successfully!"
+            );
+
+
+            confirmSendPanel.classList.add(
+                "hidden"
+            );
+
+
+            // Clear fields
+            document.getElementById(
+                "receiverAddress"
+            ).value = "";
+
+            document.getElementById(
+                "sendAmount"
+            ).value = "";
+
+
+            // Refresh wallet
+            await loadDashboard();
+
+
+        } catch (error) {
+
+            console.error(
+                "SEND ERROR:",
+                error
+            );
+
+            alert(
+                error.message
+            );
+
+        } finally {
+
+            const button =
+                document.getElementById(
+                    "confirmSendBtn"
+                );
+
+            button.disabled = false;
+
+            button.textContent =
+                "Confirm & Send";
+
+        }
+
+    });
+
+
+// ==========================================
+// REFRESH BALANCE
+// ==========================================
+
+document
+    .getElementById("refreshBtn")
+    .addEventListener("click", async () => {
+
+        await loadDashboard();
+
+    });
