@@ -1,19 +1,15 @@
 const { ethers } = require("ethers");
+const { getNetworkConfig } = require("./config");
 
-const SEPOLIA_RPC =
-    "https://ethereum-sepolia-rpc.publicnode.com";
+function connectNetwork(network = "sepolia") {
 
-function connectNetwork(network) {
-
-    if (network !== "sepolia") {
-        throw new Error("Unsupported network");
-    }
+    const config = getNetworkConfig(network);
 
     return new ethers.JsonRpcProvider(
-        SEPOLIA_RPC,
+        config.rpcUrl,
         {
-            chainId: 11155111,
-            name: "sepolia"
+            chainId: config.chainId,
+            name: config.name
         }
     );
 }

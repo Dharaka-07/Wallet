@@ -13,37 +13,37 @@ const {
 
 const app = express();
 
-const PORT = 3000;
-
-const WALLET_FILE =
-    path.join(__dirname, "wallet.json");
-
-const HISTORY_FILE =
-    path.join(__dirname, "transaction-history.json");
-
 app.use(express.json());
 
-app.use(
-    express.static(
-        path.join(__dirname, "public")
-    )
-);
-
+// Serve frontend
+app.use(express.static(path.join(__dirname, "public")));
 
 // ==========================================
-// TEMPORARY WALLET STATES
+// LOCAL FILES
+// ==========================================
+
+const WALLET_FILE = path.join(
+    __dirname,
+    "wallet.json"
+);
+
+const HISTORY_FILE = path.join(
+    __dirname,
+    "transaction-history.json"
+);
+
+// ==========================================
+// TEMPORARY WALLET STATE
 // ==========================================
 
 let pendingWallet = null;
 let unlockedWallet = null;
-
 
 // ==========================================
 // HOME
 // ==========================================
 
 app.get("/", (req, res) => {
-
     res.sendFile(
         path.join(
             __dirname,
@@ -51,44 +51,30 @@ app.get("/", (req, res) => {
             "index.html"
         )
     );
-
 });
 
-
 // ==========================================
-// CREATE NEW WALLET
+// CREATE WALLET
 // ==========================================
 
 app.post("/api/create-wallet", (req, res) => {
-
     try {
 
-        // Do not create another account
+        // Don't create another wallet
         if (fs.existsSync(WALLET_FILE)) {
-
             return res.status(409).json({
                 error: "Wallet already exists"
             });
-
         }
 
-        const wallet =
-            createWallet();
+        const wallet = createWallet();
 
-        // Keep wallet temporarily
-        // until user confirms phrase
         pendingWallet = wallet;
 
         res.json({
-
             success: true,
-
-            address:
-                wallet.address,
-
-            mnemonic:
-                wallet.mnemonic.phrase
-
+            address: wallet.address,
+            mnemonic: wallet.mnemonic.phrase
         });
 
     } catch (error) {
@@ -101,14 +87,11 @@ app.post("/api/create-wallet", (req, res) => {
         res.status(500).json({
             error: error.message
         });
-
     }
-
 });
 
-
 // ==========================================
-// CONFIRM WALLET + PASSWORD
+// CONFIRM WALLET + CREATE PASSWORD
 // ==========================================
 
 app.post(
@@ -117,71 +100,50 @@ app.post(
 
         try {
 
-            const {
-                password
-            } = req.body;
-
+            const { password } = req.body;
 
             if (!pendingWallet) {
-
                 return res.status(400).json({
                     error:
                         "No wallet is waiting for confirmation"
                 });
-
             }
-
 
             if (
                 !password ||
                 password.length < 8
             ) {
-
                 return res.status(400).json({
                     error:
                         "Password must contain at least 8 characters"
                 });
-
             }
 
-
-            // Encrypt wallet
             const encryptedWallet =
                 await encryptWallet(
                     pendingWallet,
                     password
                 );
 
-
-            // Save encrypted wallet
             fs.writeFileSync(
                 WALLET_FILE,
                 encryptedWallet
             );
 
-
             const address =
                 pendingWallet.address;
 
-
-            // Unlock current wallet
             unlockedWallet =
                 await ethers.Wallet.fromEncryptedJson(
                     encryptedWallet,
                     password
                 );
 
-
-            // Clear temporary wallet
             pendingWallet = null;
 
-
             res.json({
-
                 success: true,
-
-                address: address
-
+                address
             });
 
         } catch (error) {
@@ -194,15 +156,12 @@ app.post(
             res.status(500).json({
                 error: error.message
             });
-
         }
-
     }
 );
 
-
 // ==========================================
-// IMPORT EXISTING WALLET
+// IMPORT WALLET
 // ==========================================
 
 app.post(
@@ -216,83 +175,60 @@ app.post(
                 password
             } = req.body;
 
-
             if (!mnemonic) {
-
                 return res.status(400).json({
                     error:
                         "Recovery phrase is required"
                 });
-
             }
-
 
             if (
                 !password ||
                 password.length < 8
             ) {
-
                 return res.status(400).json({
                     error:
                         "Password must contain at least 8 characters"
                 });
-
             }
-
 
             const words =
                 mnemonic
                     .trim()
                     .split(/\s+/);
 
-
             if (words.length !== 12) {
-
                 return res.status(400).json({
                     error:
                         "Recovery phrase must contain 12 words"
                 });
-
             }
 
-
-            // Recover wallet
             const wallet =
                 importWallet(
                     mnemonic.trim()
                 );
 
-
-            // Encrypt recovered wallet
             const encryptedWallet =
                 await encryptWallet(
                     wallet,
                     password
                 );
 
-
-            // Save encrypted wallet
             fs.writeFileSync(
                 WALLET_FILE,
                 encryptedWallet
             );
 
-
-            // Unlock imported wallet
             unlockedWallet =
                 await ethers.Wallet.fromEncryptedJson(
                     encryptedWallet,
                     password
                 );
 
-
             res.json({
-
                 success: true,
-
-                address:
-                    wallet.address
-
+                address: wallet.address
             });
 
         } catch (error) {
@@ -306,15 +242,12 @@ app.post(
                 error:
                     "Invalid recovery phrase"
             });
-
         }
-
     }
 );
 
-
 // ==========================================
-// CHECK WALLET STATUS
+// WALLET STATUS
 // ==========================================
 
 app.get(
@@ -322,13 +255,10 @@ app.get(
     (req, res) => {
 
         if (!fs.existsSync(WALLET_FILE)) {
-
             return res.json({
                 exists: false
             });
-
         }
-
 
         try {
 
@@ -340,29 +270,29 @@ app.get(
                     )
                 );
 
-
             res.json({
-
                 exists: true,
-
                 address:
-                    "0x" +
                     encryptedWallet.address
-
+                        ? "0x" +
+                          encryptedWallet.address
+                        : null
             });
 
         } catch (error) {
+
+            console.error(
+                "WALLET STATUS ERROR:",
+                error
+            );
 
             res.status(500).json({
                 error:
                     "Invalid wallet file"
             });
-
         }
-
     }
 );
-
 
 // ==========================================
 // UNLOCK WALLET
@@ -374,20 +304,21 @@ app.post(
 
         try {
 
-            const {
-                password
-            } = req.body;
+            const { password } = req.body;
 
+            if (!password) {
+                return res.status(400).json({
+                    error:
+                        "Password is required"
+                });
+            }
 
             if (!fs.existsSync(WALLET_FILE)) {
-
                 return res.status(404).json({
                     error:
                         "No wallet found"
                 });
-
             }
-
 
             const encryptedWallet =
                 fs.readFileSync(
@@ -395,42 +326,37 @@ app.post(
                     "utf8"
                 );
 
-
-            // Decrypt wallet
             unlockedWallet =
                 await ethers.Wallet.fromEncryptedJson(
                     encryptedWallet,
                     password
                 );
 
-
             res.json({
-
                 success: true,
-
                 address:
                     unlockedWallet.address
-
             });
 
         } catch (error) {
 
             unlockedWallet = null;
 
+            console.error(
+                "UNLOCK ERROR:",
+                error
+            );
 
             res.status(401).json({
                 error:
                     "Incorrect password"
             });
-
         }
-
     }
 );
 
-
 // ==========================================
-// GET WALLET + LIVE SEPOLIA BALANCE
+// GET LIVE WALLET BALANCE
 // ==========================================
 
 app.get(
@@ -440,20 +366,14 @@ app.get(
         try {
 
             if (!unlockedWallet) {
-
                 return res.status(401).json({
                     error:
                         "Wallet is locked"
                 });
-
             }
 
-
             const provider =
-                connectNetwork(
-                    "sepolia"
-                );
-
+                connectNetwork("sepolia");
 
             const balance =
                 await getBalance(
@@ -461,19 +381,12 @@ app.get(
                     unlockedWallet.address
                 );
 
-
             res.json({
-
                 success: true,
-
                 walletExists: true,
-
                 address:
                     unlockedWallet.address,
-
-                balance:
-                    balance
-
+                balance
             });
 
         } catch (error) {
@@ -484,15 +397,11 @@ app.get(
             );
 
             res.status(500).json({
-                error:
-                    error.message
+                error: error.message
             });
-
         }
-
     }
 );
-
 
 // ==========================================
 // GET BALANCE
@@ -505,20 +414,14 @@ app.get(
         try {
 
             if (!unlockedWallet) {
-
                 return res.status(401).json({
                     error:
                         "Wallet is locked"
                 });
-
             }
 
-
             const provider =
-                connectNetwork(
-                    "sepolia"
-                );
-
+                connectNetwork("sepolia");
 
             const balance =
                 await getBalance(
@@ -526,60 +429,63 @@ app.get(
                     unlockedWallet.address
                 );
 
-
             res.json({
-
                 address:
                     unlockedWallet.address,
-
-                balance:
-                    balance
-
+                balance
             });
 
         } catch (error) {
 
+            console.error(
+                "BALANCE ERROR:",
+                error
+            );
+
             res.status(500).json({
-                error:
-                    error.message
+                error: error.message
             });
-
         }
-
     }
 );
 
-
 // ==========================================
-// SAVE TRANSACTION HISTORY
+// SAVE HISTORY
 // ==========================================
 
 function saveHistory(transaction) {
 
     let history = [];
 
+    try {
 
-    if (
-        fs.existsSync(
-            HISTORY_FILE
-        )
-    ) {
+        if (
+            fs.existsSync(
+                HISTORY_FILE
+            )
+        ) {
 
-        history =
-            JSON.parse(
-                fs.readFileSync(
-                    HISTORY_FILE,
-                    "utf8"
-                )
-            );
+            history =
+                JSON.parse(
+                    fs.readFileSync(
+                        HISTORY_FILE,
+                        "utf8"
+                    )
+                );
 
+        }
+
+    } catch (error) {
+
+        console.error(
+            "READ HISTORY ERROR:",
+            error
+        );
+
+        history = [];
     }
 
-
-    history.unshift(
-        transaction
-    );
-
+    history.unshift(transaction);
 
     fs.writeFileSync(
         HISTORY_FILE,
@@ -589,12 +495,10 @@ function saveHistory(transaction) {
             4
         )
     );
-
 }
 
-
 // ==========================================
-// TRANSACTION HISTORY
+// GET HISTORY
 // ==========================================
 
 app.get(
@@ -608,11 +512,8 @@ app.get(
                     HISTORY_FILE
                 )
             ) {
-
                 return res.json([]);
-
             }
-
 
             const history =
                 JSON.parse(
@@ -622,21 +523,22 @@ app.get(
                     )
                 );
 
-
             res.json(history);
 
         } catch (error) {
+
+            console.error(
+                "HISTORY ERROR:",
+                error
+            );
 
             res.status(500).json({
                 error:
                     error.message
             });
-
         }
-
     }
 );
-
 
 // ==========================================
 // SEND ETH
@@ -649,101 +551,109 @@ app.post(
         try {
 
             if (!unlockedWallet) {
-
                 return res.status(401).json({
                     error:
                         "Wallet is locked"
                 });
-
             }
-
 
             const {
                 to,
                 amount
             } = req.body;
 
-
-            if (!ethers.isAddress(to)) {
-
+            // Validate receiver
+            if (!to || !ethers.isAddress(to)) {
                 return res.status(400).json({
                     error:
                         "Invalid receiver address"
                 });
-
             }
 
-
+            // Validate amount
             if (
-                !amount ||
+                amount === undefined ||
+                amount === null ||
+                amount === "" ||
                 Number(amount) <= 0
             ) {
+                return res.status(400).json({
+                    error:
+                        "Invalid ETH amount"
+                });
+            }
+
+            let value;
+
+            try {
+
+                value =
+                    ethers.parseEther(
+                        String(amount)
+                    );
+
+            } catch (error) {
 
                 return res.status(400).json({
                     error:
                         "Invalid ETH amount"
                 });
-
             }
 
-
             const provider =
-                connectNetwork(
-                    "sepolia"
-                );
+                connectNetwork("sepolia");
 
-
-            // Connect unlocked wallet
             const signer =
                 unlockedWallet.connect(
                     provider
                 );
 
-
-            // Check balance
+            // Current balance
             const balance =
                 await provider.getBalance(
                     signer.address
                 );
 
+            // Gas estimate
+            const feeData =
+                await provider.getFeeData();
 
-            const value =
-                ethers.parseEther(
-                    amount.toString()
-                );
+            const gasPrice =
+                feeData.gasPrice || 0n;
 
+            const estimatedGas =
+                21000n;
 
-            if (balance < value) {
+            const estimatedFee =
+                gasPrice *
+                estimatedGas;
 
+            const required =
+                value +
+                estimatedFee;
+
+            if (balance < required) {
                 return res.status(400).json({
                     error:
-                        "Insufficient ETH balance"
+                        "Insufficient ETH balance for amount + gas fee"
                 });
-
             }
-
 
             // Send transaction
             const tx =
                 await signer.sendTransaction({
-
-                    to: to,
-
-                    value: value
-
+                    to,
+                    value
                 });
-
 
             console.log(
                 "Transaction sent:",
                 tx.hash
             );
 
-
             // Wait for confirmation
             const receipt =
                 await tx.wait();
-
 
             const transaction = {
 
@@ -752,38 +662,29 @@ app.post(
                 from:
                     signer.address,
 
-                to:
-                    to,
+                to,
 
                 amount:
-                    amount.toString(),
+                    String(amount),
 
                 hash:
                     tx.hash,
 
                 status:
+                    receipt &&
                     receipt.status === 1
                         ? "confirmed"
                         : "failed",
 
                 timestamp:
                     new Date().toISOString()
-
             };
 
-
-            saveHistory(
-                transaction
-            );
-
+            saveHistory(transaction);
 
             res.json({
-
                 success: true,
-
-                transaction:
-                    transaction
-
+                transaction
             });
 
         } catch (error) {
@@ -793,30 +694,37 @@ app.post(
                 error
             );
 
-
             res.status(500).json({
                 error:
+                    error.reason ||
+                    error.shortMessage ||
                     error.message
             });
-
         }
-
     }
 );
 
-
 // ==========================================
-// START SERVER
+// VERCEL / SERVER START
 // ==========================================
 
-app.listen(
-    PORT,
-    () => {
+// IMPORTANT:
+// Do NOT use app.listen() on Vercel.
 
-        console.log(
-            `ZunoX running at http://localhost:${PORT}`
-        );
+if (require.main === module) {
 
-    }
-);
+    const PORT =
+        process.env.PORT || 3000;
 
+    app.listen(
+        PORT,
+        () => {
+            console.log(
+                `ZunoX running at http://localhost:${PORT}`
+            );
+        }
+    );
+}
+
+// Export Express app for Vercel
+module.exports = app;

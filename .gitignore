@@ -4,3 +4,5 @@ wallet-backup.json
 wallet-test-backup.json
 transaction-history.json
 .env
+.vercel
+.env*
