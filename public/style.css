@@ -797,3 +797,313 @@ main {
     box-shadow:
         0 8px 30px rgba(200, 50, 255, 0.2);
 }
+
+/* =========================================
+   FINAL MOBILE RESPONSIVE
+========================================= */
+
+@media (max-width: 600px) {
+
+    body {
+        width: 100%;
+        overflow-x: hidden;
+    }
+
+    /* ==============================
+       HEADER
+    ============================== */
+
+    .topbar {
+        width: 100%;
+        max-width: 100%;
+        height: 70px;
+        padding: 0 16px;
+    }
+
+    .brand {
+        gap: 9px;
+        font-size: 23px;
+    }
+
+    .logo img {
+        width: 42px;
+        height: 42px;
+    }
+
+    .network {
+        font-size: 14px;
+    }
+
+    /* ==============================
+       MAIN
+    ============================== */
+
+    main {
+        width: 100%;
+        max-width: 100%;
+        padding: 20px 12px 45px;
+    }
+
+    /* ==============================
+       CARDS
+    ============================== */
+
+    .card {
+        width: 100%;
+        max-width: 100%;
+        padding: 25px 18px;
+        margin: 25px auto;
+        border-radius: 22px;
+    }
+
+    /* ==============================
+       ACCOUNT
+    ============================== */
+
+    .account-bar {
+        width: 100%;
+        margin-bottom: 16px;
+    }
+
+    .account-label {
+        font-size: 16px;
+    }
+
+    .account-address {
+        max-width: 100%;
+        font-size: 13px;
+    }
+
+    #shortAddress {
+        max-width: 180px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .copy-btn {
+        flex-shrink: 0;
+    }
+
+    /* ==============================
+       BALANCE CARD
+    ============================== */
+
+    .balance-card {
+        width: 100%;
+        max-width: 100%;
+        padding: 28px 12px;
+        border-radius: 24px;
+        overflow: hidden;
+    }
+
+    .balance-network {
+        font-size: 15px;
+        margin-bottom: 12px;
+    }
+
+    /* THIS FIXES YOUR MAIN PROBLEM */
+
+    #balance {
+        width: 100%;
+        max-width: 100%;
+
+        font-size: clamp(27px, 8vw, 34px);
+        line-height: 1.2;
+
+        text-align: center;
+
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+
+        margin-bottom: 16px;
+    }
+
+    .full-address {
+        width: 100%;
+        max-width: 100%;
+
+        font-size: 11px;
+        line-height: 1.5;
+
+        text-align: center;
+
+        word-break: break-all;
+        overflow-wrap: anywhere;
+    }
+
+    /* ==============================
+       SEND / RECEIVE
+    ============================== */
+
+    .action-grid {
+        width: 100%;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+
+    .action-btn {
+        min-height: 75px;
+        padding: 12px 8px;
+
+        font-size: 16px;
+
+        border-radius: 16px;
+
+        gap: 6px;
+    }
+
+    .action-icon {
+        font-size: 24px;
+    }
+
+    /* ==============================
+       PANELS
+    ============================== */
+
+    .panel {
+        width: 100%;
+        max-width: 100%;
+
+        padding: 20px 15px;
+
+        border-radius: 22px;
+    }
+
+    .panel h2 {
+        font-size: 27px;
+    }
+
+    .panel > p {
+        font-size: 14px;
+    }
+
+    /* ==============================
+       ADDRESS BOX
+    ============================== */
+
+    .address-box {
+        width: 100%;
+        max-width: 100%;
+
+        font-size: 12px;
+        line-height: 1.5;
+
+        word-break: break-all;
+        overflow-wrap: anywhere;
+
+        padding: 15px;
+    }
+
+    /* ==============================
+       SEND AMOUNT
+    ============================== */
+
+    .amount-input {
+        width: 100%;
+        padding: 0 13px;
+    }
+
+    .amount-input input {
+        min-width: 0;
+        font-size: 18px;
+    }
+
+    .amount-input span {
+        font-size: 12px;
+    }
+
+    /* ==============================
+       CONFIRMATION
+    ============================== */
+
+    .confirmation-card {
+        width: 100%;
+        padding: 20px 14px;
+        margin: 20px 0;
+    }
+
+    .confirmation-card h1 {
+        font-size: 32px;
+        overflow-wrap: anywhere;
+    }
+
+    /* ==============================
+       ACTIVITY
+    ============================== */
+
+    .activity-card {
+        width: 100%;
+        max-width: 100%;
+
+        padding: 20px 14px;
+
+        border-radius: 22px;
+
+        overflow: hidden;
+    }
+
+    .activity-header h2 {
+        font-size: 27px;
+    }
+
+    .refresh-btn {
+        padding: 8px 11px;
+        font-size: 18px;
+    }
+
+    /* Transaction text */
+
+    #history {
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    #history * {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    /* ==============================
+       PHRASE GRID
+    ============================== */
+
+    .phrase-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+
+    .word {
+        padding: 11px 7px;
+        font-size: 13px;
+    }
+
+    /* ==============================
+       WELCOME SCREEN
+    ============================== */
+
+    .welcome-card {
+        min-height: 550px;
+    }
+
+    .hero-image {
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .welcome-card h1 {
+        font-size: 42px;
+    }
+
+    #welcomeScreen .primary-btn,
+    #welcomeScreen .secondary-btn {
+        width: 100%;
+        max-width: 100%;
+        min-height: 60px;
+        font-size: 18px;
+    }
+}
