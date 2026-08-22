@@ -1,5 +1,15 @@
-initializeZunoX();
+// ==========================================
+// ZUNOX CLIENT WALLET
+// ==========================================
+
+let currentWallet = null;
 let currentAddress = null;
+
+const SEPOLIA_RPC =
+    "https://ethereum-sepolia-rpc.publicnode.com";
+
+let provider = null;
+
 
 // ==========================================
 // SCREENS
@@ -42,6 +52,24 @@ const unlockBtn =
 
 
 // ==========================================
+// PROVIDER
+// ==========================================
+
+function getProvider() {
+
+    if (!provider) {
+
+        provider =
+            new ethers.JsonRpcProvider(
+                SEPOLIA_RPC
+            );
+    }
+
+    return provider;
+}
+
+
+// ==========================================
 // SHOW SCREEN
 // ==========================================
 
@@ -58,29 +86,27 @@ function showScreen(screen) {
 
 
 // ==========================================
-// CHECK WALLET ON START
+// INITIALIZE
 // ==========================================
 
 async function initializeZunoX() {
 
     try {
 
-        const response =
-            await fetch("/api/wallet-status");
+        const exists =
+            await hasLocalWallet();
 
-        const data =
-            await response.json();
+        if (exists) {
 
-        if (data.exists) {
-
-            // Existing wallet
-            // Don't create another wallet
-            showScreen(unlockScreen);
+            showScreen(
+                unlockScreen
+            );
 
         } else {
 
-            // First time
-            showScreen(welcomeScreen);
+            showScreen(
+                welcomeScreen
+            );
         }
 
     } catch (error) {
@@ -90,7 +116,9 @@ async function initializeZunoX() {
             error
         );
 
-        showScreen(welcomeScreen);
+        showScreen(
+            welcomeScreen
+        );
     }
 }
 
@@ -105,32 +133,21 @@ createBtn.addEventListener(
 
         try {
 
-            const response =
-                await fetch(
-                    "/api/create-wallet",
-                    {
-                        method: "POST"
-                    }
-                );
+            // Generate wallet completely
+            // inside the browser.
 
-            const data =
-                await response.json();
+            const wallet =
+                ethers.Wallet.createRandom();
 
-            if (!response.ok) {
-                throw new Error(
-                    data.error ||
-                    "Failed to create wallet"
-                );
-            }
+            currentWallet =
+                wallet;
 
-
-            // Store address temporarily
             currentAddress =
-                data.address;
+                wallet.address;
 
 
             // ==================================
-            // SHOW 12 WORD RECOVERY PHRASE
+            // DISPLAY RECOVERY PHRASE
             // ==================================
 
             const phraseGrid =
@@ -138,9 +155,11 @@ createBtn.addEventListener(
                     "phraseGrid"
                 );
 
+            const phrase =
+                wallet.mnemonic.phrase;
 
             const words =
-                data.mnemonic
+                phrase
                     .trim()
                     .split(/\s+/);
 
@@ -163,7 +182,6 @@ createBtn.addEventListener(
                     .join("");
 
 
-            // Go to recovery phrase screen
             showScreen(
                 phraseScreen
             );
@@ -175,7 +193,9 @@ createBtn.addEventListener(
                 error
             );
 
-            alert(error.message);
+            alert(
+                error.message
+            );
         }
     }
 );
@@ -189,10 +209,22 @@ confirmBtn.addEventListener(
     "click",
     () => {
 
+        if (!currentWallet) {
+
+            alert(
+                "Wallet session expired. Please create the wallet again."
+            );
+
+            showScreen(
+                welcomeScreen
+            );
+
+            return;
+        }
+
         showScreen(
             passwordScreen
         );
-
     }
 );
 
@@ -216,7 +248,6 @@ savePasswordBtn.addEventListener(
             ).value;
 
 
-        // Password validation
         if (!password) {
 
             alert(
@@ -247,44 +278,48 @@ savePasswordBtn.addEventListener(
         }
 
 
+        if (!currentWallet) {
+
+            alert(
+                "Wallet session expired."
+            );
+
+            return;
+        }
+
+
         try {
 
-            const response =
-                await fetch(
-                    "/api/confirm-wallet",
-                    {
-                        method: "POST",
+            savePasswordBtn.disabled =
+                true;
 
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
+            savePasswordBtn.textContent =
+                "Encrypting Wallet...";
 
-                        body: JSON.stringify({
-                            password: password
-                        })
-                    }
+
+            // ==================================
+            // ENCRYPT WALLET LOCALLY
+            // ==================================
+
+            const encryptedJson =
+                await currentWallet.encrypt(
+                    password
                 );
 
 
-            const data =
-                await response.json();
+            // ==================================
+            // SAVE ONLY ENCRYPTED JSON
+            // ==================================
+
+            await saveEncryptedWallet(
+                encryptedJson
+            );
 
 
-            if (!response.ok) {
+            // ==================================
+            // CLEAR SENSITIVE TEMP DATA
+            // ==================================
 
-                throw new Error(
-                    data.error ||
-                    "Failed to save wallet"
-                );
-            }
-
-
-            currentAddress =
-                data.address;
-
-
-            // Clear password fields
             document.getElementById(
                 "walletPassword"
             ).value = "";
@@ -294,7 +329,10 @@ savePasswordBtn.addEventListener(
             ).value = "";
 
 
-            // Load wallet dashboard
+            // ==================================
+            // LOAD DASHBOARD
+            // ==================================
+
             await loadDashboard();
 
         } catch (error) {
@@ -304,7 +342,17 @@ savePasswordBtn.addEventListener(
                 error
             );
 
-            alert(error.message);
+            alert(
+                error.message
+            );
+
+        } finally {
+
+            savePasswordBtn.disabled =
+                false;
+
+            savePasswordBtn.textContent =
+                "Create Wallet";
         }
     }
 );
@@ -336,48 +384,52 @@ unlockBtn.addEventListener(
 
         try {
 
-            const response =
-                await fetch(
-                    "/api/unlock",
-                    {
-                        method: "POST",
+            unlockBtn.disabled =
+                true;
 
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body: JSON.stringify({
-                            password: password
-                        })
-                    }
-                );
+            unlockBtn.textContent =
+                "Unlocking...";
 
 
-            const data =
-                await response.json();
+            // ==================================
+            // GET LOCAL ENCRYPTED WALLET
+            // ==================================
+
+            const encryptedJson =
+                await getEncryptedWallet();
 
 
-            if (!response.ok) {
+            if (!encryptedJson) {
 
                 throw new Error(
-                    data.error ||
-                    "Incorrect password"
+                    "No wallet found on this device."
                 );
             }
 
 
+            // ==================================
+            // DECRYPT LOCALLY
+            // ==================================
+
+            const wallet =
+                await ethers.Wallet.fromEncryptedJson(
+                    encryptedJson,
+                    password
+                );
+
+
+            currentWallet =
+                wallet;
+
             currentAddress =
-                data.address;
+                wallet.address;
 
 
-            // Clear password
             document.getElementById(
                 "unlockPassword"
             ).value = "";
 
 
-            // Open dashboard
             await loadDashboard();
 
         } catch (error) {
@@ -387,45 +439,42 @@ unlockBtn.addEventListener(
                 error
             );
 
-            alert(error.message);
+            alert(
+                "Incorrect password or corrupted wallet."
+            );
+
+        } finally {
+
+            unlockBtn.disabled =
+                false;
+
+            unlockBtn.textContent =
+                "Unlock";
         }
     }
 );
 
 
 // ==========================================
-// LOAD WALLET DASHBOARD
+// LOAD DASHBOARD
 // ==========================================
 
 async function loadDashboard() {
 
+    if (!currentWallet) {
+
+        alert(
+            "Wallet is locked."
+        );
+
+        return;
+    }
+
+
     try {
 
-        const response =
-            await fetch(
-                "/api/wallet"
-            );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.error ||
-                "Unable to load wallet"
-            );
-        }
-
-
-        // ==================================
-        // STORE CURRENT ADDRESS
-        // ==================================
-
         currentAddress =
-            data.address;
+            currentWallet.address;
 
 
         // ==================================
@@ -463,38 +512,6 @@ async function loadDashboard() {
 
 
         // ==================================
-        // BALANCE
-        // ==================================
-
-        const balanceElement =
-            document.getElementById(
-                "balance"
-            );
-
-        if (balanceElement) {
-
-            balanceElement.textContent =
-                `${data.balance} ETH`;
-        }
-
-
-        // ==================================
-        // AVAILABLE BALANCE
-        // ==================================
-
-        const availableBalance =
-            document.getElementById(
-                "availableBalance"
-            );
-
-        if (availableBalance) {
-
-            availableBalance.textContent =
-                `Available: ${data.balance} ETH`;
-        }
-
-
-        // ==================================
         // RECEIVE ADDRESS
         // ==================================
 
@@ -511,6 +528,13 @@ async function loadDashboard() {
 
 
         // ==================================
+        // BALANCE
+        // ==================================
+
+        await refreshBalance();
+
+
+        // ==================================
         // SHOW DASHBOARD
         // ==================================
 
@@ -519,8 +543,11 @@ async function loadDashboard() {
         );
 
 
-        // Load transaction history
-        loadHistory();
+        // ==================================
+        // LOAD BLOCKCHAIN HISTORY
+        // ==================================
+
+        await loadHistory();
 
     } catch (error) {
 
@@ -529,7 +556,74 @@ async function loadDashboard() {
             error
         );
 
-        alert(error.message);
+        alert(
+            error.message
+        );
+    }
+}
+
+
+// ==========================================
+// REFRESH BALANCE
+// ==========================================
+
+async function refreshBalance() {
+
+    if (!currentAddress) {
+        return;
+    }
+
+
+    try {
+
+        const networkProvider =
+            getProvider();
+
+
+        const balance =
+            await networkProvider.getBalance(
+                currentAddress
+            );
+
+
+        const ethBalance =
+            ethers.formatEther(
+                balance
+            );
+
+
+        const balanceElement =
+            document.getElementById(
+                "balance"
+            );
+
+        if (balanceElement) {
+
+            balanceElement.textContent =
+                `${Number(ethBalance).toFixed(4)} ETH`;
+        }
+
+
+        const availableBalance =
+            document.getElementById(
+                "availableBalance"
+            );
+
+        if (availableBalance) {
+
+            availableBalance.textContent =
+                `Available: ${Number(ethBalance).toFixed(6)} ETH`;
+        }
+
+
+        return ethBalance;
+
+    } catch (error) {
+
+        console.error(
+            "BALANCE ERROR:",
+            error
+        );
     }
 }
 
@@ -582,7 +676,8 @@ if (copyAddressBtn) {
                     currentAddress
                 );
 
-                copyAddressBtn.textContent = "✓";
+                copyAddressBtn.textContent =
+                    "✓";
 
                 setTimeout(() => {
 
@@ -597,93 +692,55 @@ if (copyAddressBtn) {
                     "COPY ERROR:",
                     error
                 );
-
             }
-
         }
     );
 }
 
 
 // ==========================================
-// LOAD TRANSACTION HISTORY
+// TRANSACTION HISTORY
 // ==========================================
 
 async function loadHistory() {
 
+    const historyContainer =
+        document.getElementById(
+            "history"
+        );
+
+
+    if (!historyContainer ||
+        !currentAddress) {
+
+        return;
+    }
+
+
     try {
 
-        const response =
-            await fetch(
-                "/api/history"
-            );
+        historyContainer.innerHTML = `
+            <div class="empty">
+                Loading blockchain activity...
+            </div>
+        `;
 
 
-        if (!response.ok) {
-            return;
-        }
+        // ==================================
+        // NOTE:
+        // A normal Ethereum JSON-RPC provider
+        // does NOT expose complete historical
+        // transactions for an address.
+        //
+        // We therefore don't fake history.
+        // ==================================
 
-
-        const history =
-            await response.json();
-
-
-        const historyContainer =
-            document.getElementById(
-                "history"
-            );
-
-
-        if (!historyContainer) {
-            return;
-        }
-
-
-        if (!history.length) {
-
-            historyContainer.innerHTML = `
-                <div class="empty">
-                    No transactions yet
-                </div>
-            `;
-
-            return;
-        }
-
-
-        historyContainer.innerHTML =
-            history
-                .map(
-                    transaction => `
-
-                        <div class="transaction-item">
-
-                            <div>
-                                <strong>
-                                    ${transaction.type === "sent"
-                                        ? "↑ Sent"
-                                        : "↓ Received"}
-                                </strong>
-
-                                <small>
-                                    ${transaction.timestamp
-                                        ? new Date(
-                                            transaction.timestamp
-                                          ).toLocaleString()
-                                        : ""}
-                                </small>
-                            </div>
-
-                            <div>
-                                ${transaction.amount || "0"} ETH
-                            </div>
-
-                        </div>
-
-                    `
-                )
-                .join("");
-
+        historyContainer.innerHTML = `
+            <div class="empty">
+                Blockchain transaction history
+                will be shown here.
+            </div>
+        `;
 
     } catch (error) {
 
@@ -691,55 +748,72 @@ async function loadHistory() {
             "HISTORY ERROR:",
             error
         );
+
+        historyContainer.innerHTML = `
+            <div class="empty">
+                Unable to load activity.
+            </div>
+        `;
     }
 }
 
 
 // ==========================================
-// START ZUNOX
-// ==========================================
-
-initializeZunoX();
-
-// ==========================================
-// SEND / RECEIVE BUTTONS
+// RECEIVE
 // ==========================================
 
 const sendBtn =
-    document.getElementById("sendBtn");
+    document.getElementById(
+        "sendBtn"
+    );
 
 const receiveBtn =
-    document.getElementById("receiveBtn");
+    document.getElementById(
+        "receiveBtn"
+    );
 
 const sendPanel =
-    document.getElementById("sendPanel");
+    document.getElementById(
+        "sendPanel"
+    );
 
 const receivePanel =
-    document.getElementById("receivePanel");
+    document.getElementById(
+        "receivePanel"
+    );
 
 const confirmSendPanel =
-    document.getElementById("confirmSendPanel");
+    document.getElementById(
+        "confirmSendPanel"
+    );
 
 
-// ==========================================
-// OPEN RECEIVE
-// ==========================================
+receiveBtn.addEventListener(
+    "click",
+    () => {
 
-receiveBtn.addEventListener("click", () => {
+        receivePanel.classList.remove(
+            "hidden"
+        );
 
-    receivePanel.classList.remove("hidden");
+        sendPanel.classList.add(
+            "hidden"
+        );
 
-    sendPanel.classList.add("hidden");
+        confirmSendPanel.classList.add(
+            "hidden"
+        );
 
-    confirmSendPanel.classList.add("hidden");
 
-    const receiveAddress =
-        document.getElementById("receiveAddress");
+        const receiveAddress =
+            document.getElementById(
+                "receiveAddress"
+            );
 
-    receiveAddress.textContent =
-        currentAddress || "0x...";
-
-});
+        receiveAddress.textContent =
+            currentAddress || "0x...";
+    }
+);
 
 
 // ==========================================
@@ -747,12 +821,18 @@ receiveBtn.addEventListener("click", () => {
 // ==========================================
 
 document
-    .getElementById("closeReceiveBtn")
-    .addEventListener("click", () => {
+    .getElementById(
+        "closeReceiveBtn"
+    )
+    .addEventListener(
+        "click",
+        () => {
 
-        receivePanel.classList.add("hidden");
-
-    });
+            receivePanel.classList.add(
+                "hidden"
+            );
+        }
+    );
 
 
 // ==========================================
@@ -760,70 +840,68 @@ document
 // ==========================================
 
 document
-    .getElementById("copyReceiveBtn")
-    .addEventListener("click", async () => {
+    .getElementById(
+        "copyReceiveBtn"
+    )
+    .addEventListener(
+        "click",
+        async () => {
 
-        if (!currentAddress) {
-            alert("Wallet address not available");
-            return;
+            if (!currentAddress) {
+
+                alert(
+                    "Wallet address not available"
+                );
+
+                return;
+            }
+
+
+            await navigator.clipboard.writeText(
+                currentAddress
+            );
+
+            alert(
+                "Wallet address copied!"
+            );
         }
-
-        await navigator.clipboard.writeText(
-            currentAddress
-        );
-
-        alert("Wallet address copied!");
-    });
+    );
 
 
 // ==========================================
 // OPEN SEND
 // ==========================================
 
-sendBtn.addEventListener("click", async () => {
+sendBtn.addEventListener(
+    "click",
+    async () => {
 
-    sendPanel.classList.remove("hidden");
-
-    receivePanel.classList.add("hidden");
-
-    confirmSendPanel.classList.add("hidden");
-
-    document.getElementById(
-        "receiverAddress"
-    ).value = "";
-
-    document.getElementById(
-        "sendAmount"
-    ).value = "";
-
-    // Get latest balance
-    try {
-
-        const response =
-            await fetch("/api/balance");
-
-        const data =
-            await response.json();
-
-        if (response.ok) {
-
-            document.getElementById(
-                "availableBalance"
-            ).textContent =
-                `Available: ${data.balance} ETH`;
-
-        }
-
-    } catch (error) {
-
-        console.error(
-            "BALANCE ERROR:",
-            error
+        sendPanel.classList.remove(
+            "hidden"
         );
 
-    }
+        receivePanel.classList.add(
+            "hidden"
+        );
 
-});
+        confirmSendPanel.classList.add(
+            "hidden"
+        );
+
+
+        document.getElementById(
+            "receiverAddress"
+        ).value = "";
+
+
+        document.getElementById(
+            "sendAmount"
+        ).value = "";
+
+
+        await refreshBalance();
+    }
+);
 
 
 // ==========================================
@@ -831,12 +909,18 @@ sendBtn.addEventListener("click", async () => {
 // ==========================================
 
 document
-    .getElementById("closeSendBtn")
-    .addEventListener("click", () => {
+    .getElementById(
+        "closeSendBtn"
+    )
+    .addEventListener(
+        "click",
+        () => {
 
-        sendPanel.classList.add("hidden");
-
-    });
+            sendPanel.classList.add(
+                "hidden"
+            );
+        }
+    );
 
 
 // ==========================================
@@ -844,72 +928,136 @@ document
 // ==========================================
 
 document
-    .getElementById("continueSendBtn")
-    .addEventListener("click", () => {
+    .getElementById(
+        "continueSendBtn"
+    )
+    .addEventListener(
+        "click",
+        async () => {
 
-        const receiver =
-            document.getElementById(
-                "receiverAddress"
-            ).value.trim();
+            const receiver =
+                document.getElementById(
+                    "receiverAddress"
+                ).value.trim();
 
-        const amount =
-            document.getElementById(
-                "sendAmount"
-            ).value.trim();
+            const amount =
+                document.getElementById(
+                    "sendAmount"
+                ).value.trim();
 
 
-        if (!receiver) {
+            // ==================================
+            // VALIDATE ADDRESS
+            // ==================================
 
-            alert(
-                "Enter the receiver address."
-            );
+            if (!receiver) {
 
-            return;
+                alert(
+                    "Enter the receiver address."
+                );
+
+                return;
+            }
+
+
+            if (
+                !ethers.isAddress(
+                    receiver
+                )
+            ) {
+
+                alert(
+                    "Enter a valid Ethereum address."
+                );
+
+                return;
+            }
+
+
+            // ==================================
+            // VALIDATE AMOUNT
+            // ==================================
+
+            if (
+                !amount ||
+                Number(amount) <= 0
+            ) {
+
+                alert(
+                    "Enter a valid ETH amount."
+                );
+
+                return;
+            }
+
+
+            try {
+
+                const provider =
+                    getProvider();
+
+
+                const balance =
+                    await provider.getBalance(
+                        currentAddress
+                    );
+
+
+                const amountWei =
+                    ethers.parseEther(
+                        amount
+                    );
+
+
+                if (
+                    amountWei >= balance
+                ) {
+
+                    alert(
+                        "Insufficient ETH balance."
+                    );
+
+                    return;
+                }
+
+
+                // ==================================
+                // CONFIRMATION
+                // ==================================
+
+                document.getElementById(
+                    "confirmAmount"
+                ).textContent =
+                    `${amount} ETH`;
+
+
+                document.getElementById(
+                    "confirmReceiver"
+                ).textContent =
+                    receiver;
+
+
+                sendPanel.classList.add(
+                    "hidden"
+                );
+
+                confirmSendPanel.classList.remove(
+                    "hidden"
+                );
+
+            } catch (error) {
+
+                console.error(
+                    "SEND VALIDATION ERROR:",
+                    error
+                );
+
+                alert(
+                    error.message
+                );
+            }
         }
-
-
-        if (!receiver.startsWith("0x") ||
-            receiver.length !== 42) {
-
-            alert(
-                "Enter a valid Ethereum address."
-            );
-
-            return;
-        }
-
-
-        if (!amount ||
-            Number(amount) <= 0) {
-
-            alert(
-                "Enter a valid ETH amount."
-            );
-
-            return;
-        }
-
-
-        // Show confirmation
-        document.getElementById(
-            "confirmAmount"
-        ).textContent =
-            `${amount} ETH`;
-
-
-        document.getElementById(
-            "confirmReceiver"
-        ).textContent =
-            receiver;
-
-
-        sendPanel.classList.add("hidden");
-
-        confirmSendPanel.classList.remove(
-            "hidden"
-        );
-
-    });
+    );
 
 
 // ==========================================
@@ -917,18 +1065,22 @@ document
 // ==========================================
 
 document
-    .getElementById("backToSendBtn")
-    .addEventListener("click", () => {
+    .getElementById(
+        "backToSendBtn"
+    )
+    .addEventListener(
+        "click",
+        () => {
 
-        confirmSendPanel.classList.add(
-            "hidden"
-        );
+            confirmSendPanel.classList.add(
+                "hidden"
+            );
 
-        sendPanel.classList.remove(
-            "hidden"
-        );
-
-    });
+            sendPanel.classList.remove(
+                "hidden"
+            );
+        }
+    );
 
 
 // ==========================================
@@ -936,116 +1088,159 @@ document
 // ==========================================
 
 document
-    .getElementById("confirmSendBtn")
-    .addEventListener("click", async () => {
+    .getElementById(
+        "confirmSendBtn"
+    )
+    .addEventListener(
+        "click",
+        async () => {
 
-        const receiver =
-            document.getElementById(
-                "receiverAddress"
-            ).value.trim();
+            if (!currentWallet) {
 
-        const amount =
-            document.getElementById(
-                "sendAmount"
-            ).value.trim();
-
-
-        try {
-
-            const button =
-                document.getElementById(
-                    "confirmSendBtn"
+                alert(
+                    "Wallet is locked."
                 );
 
-            button.disabled = true;
-
-            button.textContent =
-                "Sending...";
-
-
-            const response =
-                await fetch(
-                    "/api/send",
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body: JSON.stringify({
-                            to: receiver,
-                            amount: amount
-                        })
-                    }
-                );
-
-
-            const data =
-                await response.json();
-
-
-            if (!response.ok) {
-
-                throw new Error(
-                    data.error ||
-                    "Transaction failed"
-                );
-
+                return;
             }
 
 
-            alert(
-                "Transaction sent successfully!"
-            );
+            const receiver =
+                document.getElementById(
+                    "receiverAddress"
+                ).value.trim();
 
+            const amount =
+                document.getElementById(
+                    "sendAmount"
+                ).value.trim();
 
-            confirmSendPanel.classList.add(
-                "hidden"
-            );
-
-
-            // Clear fields
-            document.getElementById(
-                "receiverAddress"
-            ).value = "";
-
-            document.getElementById(
-                "sendAmount"
-            ).value = "";
-
-
-            // Refresh wallet
-            await loadDashboard();
-
-
-        } catch (error) {
-
-            console.error(
-                "SEND ERROR:",
-                error
-            );
-
-            alert(
-                error.message
-            );
-
-        } finally {
 
             const button =
                 document.getElementById(
                     "confirmSendBtn"
                 );
 
-            button.disabled = false;
 
-            button.textContent =
-                "Confirm & Send";
+            try {
 
+                button.disabled =
+                    true;
+
+                button.textContent =
+                    "Sending...";
+
+
+                // ==================================
+                // CONNECT WALLET TO PROVIDER
+                // ==================================
+
+                const signer =
+                    currentWallet.connect(
+                        getProvider()
+                    );
+
+
+                // ==================================
+                // CREATE TRANSACTION
+                // ==================================
+
+                const transaction = {
+
+                    to: receiver,
+
+                    value:
+                        ethers.parseEther(
+                            amount
+                        )
+                };
+
+
+                // ==================================
+                // SIGN + BROADCAST
+                // ==================================
+
+                const tx =
+                    await signer.sendTransaction(
+                        transaction
+                    );
+
+
+                // ==================================
+                // WAIT FOR CONFIRMATION
+                // ==================================
+
+                button.textContent =
+                    "Confirming...";
+
+
+                const receipt =
+                    await tx.wait();
+
+
+                console.log(
+                    "TRANSACTION RECEIPT:",
+                    receipt
+                );
+
+
+                alert(
+                    `Transaction confirmed!\n\nTX Hash:\n${tx.hash}`
+                );
+
+
+                confirmSendPanel.classList.add(
+                    "hidden"
+                );
+
+
+                document.getElementById(
+                    "receiverAddress"
+                ).value = "";
+
+                document.getElementById(
+                    "sendAmount"
+                ).value = "";
+
+
+                await loadDashboard();
+
+            } catch (error) {
+
+                console.error(
+                    "SEND ERROR:",
+                    error
+                );
+
+
+                let message =
+                    "Transaction failed.";
+
+
+                if (error?.reason) {
+                    message =
+                        error.reason;
+                } else if (error?.shortMessage) {
+                    message =
+                        error.shortMessage;
+                } else if (error?.message) {
+                    message =
+                        error.message;
+                }
+
+
+                alert(message);
+
+            } finally {
+
+                button.disabled =
+                    false;
+
+                button.textContent =
+                    "Confirm & Send";
+            }
         }
-
-    });
+    );
 
 
 // ==========================================
@@ -1053,9 +1248,22 @@ document
 // ==========================================
 
 document
-    .getElementById("refreshBtn")
-    .addEventListener("click", async () => {
+    .getElementById(
+        "refreshBtn"
+    )
+    .addEventListener(
+        "click",
+        async () => {
 
-        await loadDashboard();
+            await refreshBalance();
 
-    });
+            await loadHistory();
+        }
+    );
+
+
+// ==========================================
+// START ZUNOX
+// ==========================================
+
+initializeZunoX();
